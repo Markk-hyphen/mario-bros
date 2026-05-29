@@ -1,0 +1,359 @@
+'use strict';
+
+// ===========================================================================
+// Cliente de LAN Platformer.
+//
+// Modelo: el servidor es autoritativo. El cliente (1) manda inputs y (2)
+// renderiza snapshots. Para suavizar los 30 Hz de red a 60 fps de pantalla
+// interpolamos entre los dos últimos snapshots con un pequeño retraso de
+// render (INTERP_MS). Excepción deliberada: el jugador local se dibuja con el
+// snapshot más reciente (sin retraso) para que el control se sienta responsivo.
+// El costo es un mínimo "tirón" si hay packet loss; en LAN no se nota.
+//
+// ¿Querés control aún más crudo? El paso siguiente es client-side prediction +
+// server reconciliation (ver README). Para couch co-op en LAN no hace falta.
+// ===========================================================================
+
+const INTERP_MS = 100; // retraso de render para entidades remotas
+
+// ---- DOM ----
+const lobby = document.getElementById('lobby');
+const game = document.getElementById('game');
+const nameInput = document.getElementById('name');
+const joinBtn = document.getElementById('joinBtn');
+const statusEl = document.getElementById('status');
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const scoreboard = document.getElementById('scoreboard');
+const connEl = document.getElementById('conn');
+const touch = document.getElementById('touch');
+
+// ---- Estado ----
+let ws = null;
+let myId = null;
+let cfg = null;          // {tile, cols, rows, tiles[]}
+let worldW = 0, worldH = 0;
+const buffer = [];        // [{t, state}] snapshots recibidos, ordenados por t
+let latest = null;        // último snapshot (para jugador local + monedas)
+const input = { left: false, right: false, jump: false };
+let lastSent = '';
+
+// ===========================================================================
+// Conexión
+// ===========================================================================
+function connect(name) {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  ws = new WebSocket(`${proto}://${location.host}`);
+
+  ws.onopen = () => ws.send(JSON.stringify({ type: 'join', name }));
+
+  ws.onmessage = (ev) => {
+    const msg = JSON.parse(ev.data);
+    if (msg.type === 'welcome') {
+      myId = msg.id;
+      cfg = msg;
+      worldW = msg.cols * msg.tile;
+      worldH = msg.rows * msg.tile;
+      enterGame();
+    } else if (msg.type === 'state') {
+      const t = performance.now();
+      buffer.push({ t, state: msg });
+      latest = msg;
+      // Mantenemos ~1s de historia.
+      while (buffer.length > 2 && t - buffer[0].t > 1000) buffer.shift();
+      setConn(true);
+    }
+  };
+
+  ws.onclose = () => {
+    setConn(false, 'desconectado — recargá la página');
+    statusEl.textContent = 'Se cortó la conexión con el servidor.';
+  };
+  ws.onerror = () => setConn(false, 'error de conexión');
+}
+
+function setConn(ok, txt) {
+  if (!connEl) return;
+  connEl.textContent = txt || (ok ? 'conectado' : 'sin conexión');
+  connEl.classList.toggle('bad', !ok);
+}
+
+// ===========================================================================
+// Lobby -> juego
+// ===========================================================================
+function join() {
+  const name = (nameInput.value || 'P1').trim().slice(0, 16) || 'P1';
+  joinBtn.disabled = true;
+  statusEl.textContent = 'conectando…';
+  try { connect(name); } catch (e) { statusEl.textContent = 'no se pudo conectar'; joinBtn.disabled = false; }
+}
+joinBtn.addEventListener('click', join);
+nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') join(); });
+
+function enterGame() {
+  lobby.classList.add('hidden');
+  game.classList.remove('hidden');
+  resize();
+  if ('ontouchstart' in window) touch.classList.remove('hidden');
+  requestAnimationFrame(render);
+}
+
+// ===========================================================================
+// Input
+// ===========================================================================
+function sendInput() {
+  if (!ws || ws.readyState !== ws.OPEN) return;
+  const payload = JSON.stringify({ type: 'input', ...input });
+  if (payload === lastSent) return; // solo mandamos al cambiar
+  lastSent = payload;
+  ws.send(payload);
+}
+
+const KEYS = {
+  ArrowLeft: 'left', KeyA: 'left',
+  ArrowRight: 'right', KeyD: 'right',
+  ArrowUp: 'jump', KeyW: 'jump', Space: 'jump',
+};
+window.addEventListener('keydown', (e) => {
+  const k = KEYS[e.code];
+  if (!k) return;
+  e.preventDefault();
+  if (!input[k]) { input[k] = true; sendInput(); }
+});
+window.addEventListener('keyup', (e) => {
+  const k = KEYS[e.code];
+  if (!k) return;
+  e.preventDefault();
+  if (input[k]) { input[k] = false; sendInput(); }
+});
+
+// Controles táctiles
+for (const btn of document.querySelectorAll('.tb')) {
+  const k = btn.dataset.k;
+  const on = (e) => { e.preventDefault(); if (!input[k]) { input[k] = true; sendInput(); } };
+  const off = (e) => { e.preventDefault(); if (input[k]) { input[k] = false; sendInput(); } };
+  btn.addEventListener('touchstart', on, { passive: false });
+  btn.addEventListener('touchend', off, { passive: false });
+  btn.addEventListener('touchcancel', off, { passive: false });
+}
+
+// ===========================================================================
+// Canvas / cámara
+// ===========================================================================
+let cssW = 0, cssH = 0, dpr = 1, zoom = 2;
+function resize() {
+  dpr = window.devicePixelRatio || 1;
+  cssW = window.innerWidth;
+  cssH = window.innerHeight;
+  canvas.width = Math.floor(cssW * dpr);
+  canvas.height = Math.floor(cssH * dpr);
+  // Mostramos ~14 tiles de alto, sin bajar de zoom 1.
+  zoom = Math.max(1, cssH / (14 * (cfg ? cfg.tile : 32)));
+}
+window.addEventListener('resize', resize);
+
+function camera(focusX, focusY) {
+  const visW = cssW / zoom;
+  const visH = cssH / zoom;
+  let camX = focusX - visW / 2;
+  let camY = focusY - visH / 2;
+  camX = worldW <= visW ? (worldW - visW) / 2 : clamp(camX, 0, worldW - visW);
+  camY = worldH <= visH ? (worldH - visH) / 2 : clamp(camY, 0, worldH - visH);
+  return { camX, camY, visW, visH };
+}
+
+// ===========================================================================
+// Interpolación
+// ===========================================================================
+function interpolated(renderT) {
+  // Devuelve un mapa id->{x,y} para players y enemies interpolados.
+  if (buffer.length === 0) return { players: {}, enemies: {} };
+  let s0 = buffer[0], s1 = buffer[buffer.length - 1];
+  for (let i = 0; i < buffer.length - 1; i++) {
+    if (buffer[i].t <= renderT && renderT <= buffer[i + 1].t) { s0 = buffer[i]; s1 = buffer[i + 1]; break; }
+  }
+  let a = 0;
+  if (s1.t > s0.t) a = clamp((renderT - s0.t) / (s1.t - s0.t), 0, 1);
+
+  const lerpSet = (key) => {
+    const m0 = index(s0.state[key]);
+    const out = {};
+    for (const e of s1.state[key]) {
+      const p = m0[e.id];
+      out[e.id] = p ? { ...e, x: lerp(p.x, e.x, a), y: lerp(p.y, e.y, a) } : { ...e };
+    }
+    return out;
+  };
+  return { players: lerpSet('players'), enemies: lerpSet('enemies') };
+}
+
+// ===========================================================================
+// Render
+// ===========================================================================
+function render(now) {
+  requestAnimationFrame(render);
+  if (!cfg || !latest) return;
+
+  const renderT = now - INTERP_MS;
+  const interp = interpolated(renderT);
+
+  // Foco de cámara: jugador local desde el snapshot más reciente (responsivo).
+  const me = latest.players.find((p) => p.id === myId);
+  const focusX = me ? me.x + 12 : worldW / 2;
+  const focusY = me ? me.y + 15 : worldH / 2;
+  const { camX, camY } = camera(focusX, focusY);
+
+  ctx.setTransform(dpr * zoom, 0, 0, dpr * zoom, -camX * dpr * zoom, -camY * dpr * zoom);
+
+  drawBackground(camX, camY);
+  drawTiles(camX, camY);
+  drawCoins(now);
+  for (const e of Object.values(interp.enemies)) drawEnemy(e, now);
+
+  // Jugadores: el local desde 'latest' (sin retraso), el resto interpolados.
+  for (const p of latest.players) {
+    if (p.id === myId) drawPlayer(p, true, now);
+  }
+  for (const p of Object.values(interp.players)) {
+    if (p.id !== myId) {
+      // Tomamos campos no posicionales (color, nombre, invuln) del último snapshot.
+      const meta = latest.players.find((q) => q.id === p.id) || p;
+      drawPlayer({ ...meta, x: p.x, y: p.y }, false, now);
+    }
+  }
+
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  updateHUD();
+}
+
+function drawBackground(camX, camY) {
+  ctx.fillStyle = '#070b15';
+  ctx.fillRect(camX - 50, camY - 50, cssW / zoom + 100, cssH / zoom + 100);
+  // "Estrellas" estáticas en coordenadas de mundo (sin parallax, simple y barato).
+  ctx.fillStyle = 'rgba(120,150,210,0.16)';
+  for (let i = 0; i < 80; i++) {
+    const sx = (i * 137.5) % worldW;
+    const sy = (i * 71.3) % worldH;
+    ctx.fillRect(sx, sy, 2, 2);
+  }
+}
+
+function drawTiles(camX, camY) {
+  const T = cfg.tile;
+  const c0 = Math.max(0, Math.floor(camX / T) - 1);
+  const c1 = Math.min(cfg.cols - 1, Math.floor((camX + cssW / zoom) / T) + 1);
+  const r0 = Math.max(0, Math.floor(camY / T) - 1);
+  const r1 = Math.min(cfg.rows - 1, Math.floor((camY + cssH / zoom) / T) + 1);
+
+  for (let r = r0; r <= r1; r++) {
+    const row = cfg.tiles[r];
+    for (let c = c0; c <= c1; c++) {
+      const ch = row[c];
+      if (ch !== '#' && ch !== '=') continue;
+      const x = c * T, y = r * T;
+      if (ch === '#') {
+        ctx.fillStyle = '#26314f';
+        ctx.fillRect(x, y, T, T);
+        ctx.fillStyle = '#34416a';
+        ctx.fillRect(x, y, T, 4); // borde superior iluminado
+        ctx.fillStyle = '#1b2440';
+        ctx.fillRect(x, y + T - 4, T, 4);
+      } else { // plataforma
+        ctx.fillStyle = '#3a5d44';
+        ctx.fillRect(x, y, T, T * 0.5);
+        ctx.fillStyle = '#52facb';
+        ctx.fillRect(x, y, T, 3);
+      }
+    }
+  }
+}
+
+function drawCoins(now) {
+  const bob = Math.sin(now / 220) * 2;
+  for (const co of latest.coins) {
+    const cx = co.x + 10, cy = co.y + 10 + bob;
+    ctx.fillStyle = '#ffd24d';
+    ctx.beginPath();
+    ctx.arc(cx, cy, 8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#fff2bf';
+    ctx.beginPath();
+    ctx.arc(cx - 2, cy - 2, 3, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+function drawEnemy(e, now) {
+  const wob = Math.sin(now / 90) * 2;
+  const x = e.x, y = e.y, w = 28, h = 28;
+  ctx.fillStyle = '#b54a6a';
+  roundRect(x, y + 2, w, h - 2, 6); ctx.fill();
+  ctx.fillStyle = '#7d3149';
+  ctx.fillRect(x + 4, y + h - 4, 6, 4 + wob);
+  ctx.fillRect(x + w - 10, y + h - 4, 6, 4 - wob);
+  // ojos según dirección
+  ctx.fillStyle = '#fff';
+  const ex = e.d > 0 ? x + w - 13 : x + 5;
+  ctx.fillRect(ex, y + 8, 8, 8);
+  ctx.fillStyle = '#1a0d13';
+  ctx.fillRect(ex + (e.d > 0 ? 4 : 0), y + 10, 4, 4);
+}
+
+function drawPlayer(p, isMe, now) {
+  // Parpadeo de invulnerabilidad.
+  if (p.iv && Math.floor(now / 80) % 2 === 0) return;
+  const x = p.x, y = p.y, w = 24, h = 30;
+
+  ctx.fillStyle = p.col;
+  roundRect(x, y, w, h, 6); ctx.fill();
+  // sombreado
+  ctx.fillStyle = 'rgba(0,0,0,0.22)';
+  ctx.fillRect(x, y + h - 6, w, 6);
+  // ojos
+  ctx.fillStyle = '#0a0f1c';
+  const ex = p.f >= 0 ? x + w - 12 : x + 5;
+  ctx.fillRect(ex, y + 8, 7, 7);
+
+  // nombre
+  ctx.font = '700 9px ui-monospace, monospace';
+  ctx.textAlign = 'center';
+  const label = (isMe ? '▸ ' : '') + p.n;
+  const tw = ctx.measureText(label).width;
+  ctx.fillStyle = 'rgba(7,11,21,0.7)';
+  ctx.fillRect(x + w / 2 - tw / 2 - 4, y - 16, tw + 8, 12);
+  ctx.fillStyle = isMe ? '#5dff8f' : '#e8ecf8';
+  ctx.fillText(label, x + w / 2, y - 7);
+  ctx.textAlign = 'left';
+}
+
+// ===========================================================================
+// HUD
+// ===========================================================================
+function updateHUD() {
+  if (!latest) return;
+  const sorted = [...latest.players].sort((a, b) => b.sc - a.sc);
+  scoreboard.innerHTML = sorted.map((p) => `
+    <div class="row">
+      <span class="chip" style="background:${p.col}"></span>
+      <span class="${p.id === myId ? 'me' : ''}">${escapeHtml(p.n)}</span>
+      <span class="lv">♥${p.lv}</span>
+      <span class="sc">${p.sc}</span>
+    </div>`).join('');
+}
+
+// ===========================================================================
+// Utilidades
+// ===========================================================================
+function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
+function lerp(a, b, t) { return a + (b - a) * t; }
+function index(arr) { const m = {}; for (const e of arr) m[e.id] = e; return m; }
+function roundRect(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+function escapeHtml(s) { return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }

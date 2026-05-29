@@ -1,0 +1,118 @@
+:root {
+  --bg: #0b0f1a;
+  --ink: #e8ecf8;
+  --accent: #5dff8f;
+  --accent2: #4dd2ff;
+  --warn: #ffd24d;
+  --panel: #131a2c;
+  --line: #2a3550;
+  --mono: ui-monospace, "SFMono-Regular", "Consolas", "Liberation Mono", "Menlo", monospace;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--mono);
+  overflow: hidden;
+  -webkit-font-smoothing: none;
+  image-rendering: pixelated;
+}
+
+.hidden { display: none !important; }
+
+.screen {
+  position: fixed; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+
+/* Overlay de scanlines tipo CRT */
+.scanlines {
+  position: absolute; inset: 0; pointer-events: none; z-index: 50;
+  background: repeating-linear-gradient(
+    to bottom, rgba(0,0,0,0) 0px, rgba(0,0,0,0) 2px,
+    rgba(0,0,0,0.18) 3px, rgba(0,0,0,0.18) 4px);
+  mix-blend-mode: multiply;
+}
+
+/* ---------- Lobby ---------- */
+#lobby {
+  background:
+    radial-gradient(1200px 600px at 50% -10%, #1a2748 0%, transparent 60%),
+    var(--bg);
+}
+.panel {
+  width: min(440px, 90vw);
+  background: var(--panel);
+  border: 2px solid var(--line);
+  border-radius: 14px;
+  padding: 34px 30px 28px;
+  box-shadow: 0 0 0 4px rgba(93,255,143,0.04), 0 30px 80px rgba(0,0,0,0.6);
+  position: relative; z-index: 10;
+}
+h1 {
+  font-size: 30px; letter-spacing: 3px; line-height: 1.1;
+  text-shadow: 0 0 18px rgba(93,255,143,0.45);
+}
+h1 span { display: block; color: var(--accent); }
+.tag { color: var(--accent2); font-size: 12px; margin: 8px 0 26px; opacity: 0.85; }
+
+label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 2px; color: #8a96b8; margin-bottom: 8px; }
+input {
+  width: 100%; padding: 14px 16px; font-family: var(--mono); font-size: 16px;
+  background: #0c1322; color: var(--ink);
+  border: 2px solid var(--line); border-radius: 8px; outline: none;
+}
+input:focus { border-color: var(--accent2); box-shadow: 0 0 0 3px rgba(77,210,255,0.18); }
+
+button#joinBtn {
+  width: 100%; margin-top: 18px; padding: 15px; cursor: pointer;
+  font-family: var(--mono); font-size: 16px; letter-spacing: 3px; font-weight: 700;
+  color: #07140c; background: var(--accent); border: none; border-radius: 8px;
+  transition: transform 0.05s ease, filter 0.15s ease;
+}
+button#joinBtn:hover { filter: brightness(1.08); }
+button#joinBtn:active { transform: translateY(2px); }
+button#joinBtn:disabled { filter: grayscale(0.7) brightness(0.7); cursor: wait; }
+
+.status { min-height: 18px; margin-top: 14px; font-size: 12px; color: var(--warn); }
+
+.controls { margin-top: 26px; padding-top: 18px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 6px; }
+.controls strong { font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: #8a96b8; margin-bottom: 4px; }
+.controls span { font-size: 12px; color: #aeb8d4; }
+
+/* ---------- Juego ---------- */
+#game { background: #060912; }
+#canvas { display: block; width: 100%; height: 100%; image-rendering: pixelated; }
+
+#hud {
+  position: absolute; top: 0; left: 0; right: 0; z-index: 20;
+  display: flex; justify-content: space-between; align-items: flex-start;
+  padding: 12px 14px; pointer-events: none;
+}
+#scoreboard { display: flex; flex-direction: column; gap: 4px; }
+.row {
+  display: flex; align-items: center; gap: 8px;
+  background: rgba(11,15,26,0.72); border: 1px solid var(--line);
+  padding: 5px 10px; border-radius: 6px; font-size: 13px;
+}
+.row .chip { width: 12px; height: 12px; border-radius: 3px; }
+.row .me { color: var(--accent); }
+.row .sc { color: var(--warn); margin-left: auto; padding-left: 14px; }
+.row .lv { opacity: 0.85; }
+.conn { background: rgba(11,15,26,0.72); border: 1px solid var(--line); padding: 5px 10px; border-radius: 6px; font-size: 12px; color: #8a96b8; }
+.conn.bad { color: var(--warn); border-color: var(--warn); }
+
+/* ---------- Controles táctiles ---------- */
+.touch { position: absolute; inset: auto 0 0 0; z-index: 30; display: flex; justify-content: space-between; padding: 18px 22px 28px; pointer-events: none; }
+.touch .pad { display: flex; gap: 14px; }
+.tb {
+  pointer-events: auto; width: 76px; height: 76px; border-radius: 16px;
+  font-size: 26px; color: var(--ink); background: rgba(19,26,44,0.85);
+  border: 2px solid var(--line); user-select: none; -webkit-user-select: none;
+  touch-action: none;
+}
+.tb:active { background: rgba(93,255,143,0.25); border-color: var(--accent); }
+.tb.jump { width: 96px; height: 96px; }

@@ -1,0 +1,16 @@
+{
+  "name": "lan-platformer",
+  "version": "1.0.0",
+  "description": "Plataformero co-op para jugar en LAN. Servidor autoritativo en Node + cliente canvas en el navegador.",
+  "main": "server/server.js",
+  "scripts": {
+    "start": "node server/server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "license": "MIT"
+}

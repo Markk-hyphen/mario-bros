@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>LAN Platformer</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <!-- Lobby -->
+  <div id="lobby" class="screen">
+    <div class="panel">
+      <h1>LAN<span>PLATFORMER</span></h1>
+      <p class="tag">co-op de andar y saltar // en red local</p>
+      <label for="name">tu nombre</label>
+      <input id="name" maxlength="16" autocomplete="off" placeholder="P1" />
+      <button id="joinBtn">ENTRAR</button>
+      <p id="status" class="status"></p>
+      <div class="controls">
+        <strong>controles</strong>
+        <span>← →  /  A D — moverse</span>
+        <span>espacio / ↑ / W — saltar (mantené para saltar más alto)</span>
+      </div>
+    </div>
+    <div class="scanlines"></div>
+  </div>
+
+  <!-- Juego -->
+  <div id="game" class="screen hidden">
+    <canvas id="canvas"></canvas>
+    <div id="hud">
+      <div id="scoreboard"></div>
+      <div id="conn" class="conn"></div>
+    </div>
+    <!-- Controles táctiles para celular/tablet -->
+    <div id="touch" class="touch hidden">
+      <div class="pad">
+        <button class="tb" data-k="left">◀</button>
+        <button class="tb" data-k="right">▶</button>
+      </div>
+      <button class="tb jump" data-k="jump">▲</button>
+    </div>
+    <div class="scanlines"></div>
+  </div>
+
+  <script src="/client.js"></script>
+</body>
+</html>
