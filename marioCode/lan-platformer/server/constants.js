@@ -27,8 +27,8 @@ const START_LIVES = 3;
 
 // --- Vida y combate ---
 const MAX_HP = 100;        // barra de vida (variable abstracta)
-const BULLET_DAMAGE = 10;  // daño por bala
-const ENEMY_DAMAGE = 100;  // enemigos = 100% (te matan de un toque, como antes)
+const BULLET_DAMAGE = 25;  // daño por bala
+const ENEMY_DAMAGE = 50;  // enemigos = 100% (te matan de un toque, como antes)
 
 // --- Armas / balas ---
 const BULLET_SPEED = 11;   // px/tick (< TILE para no atravesar paredes)

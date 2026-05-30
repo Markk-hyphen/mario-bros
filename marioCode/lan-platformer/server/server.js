@@ -110,10 +110,10 @@ const STEP_MS = 1000 / C.SIM_HZ;
 let last = Date.now();
 let acc = 0;
 setInterval(() => {
-  if (!world) return;
   const now = Date.now();
   acc += now - last;
   last = now;
+  if (!world) { acc = 0; return; }
   let steps = 0;
   while (acc >= STEP_MS && steps < 5) {
     world.step();
