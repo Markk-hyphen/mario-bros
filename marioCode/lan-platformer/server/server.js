@@ -83,6 +83,13 @@ function advanceLevel() {
   }
 }
 
+function broadcast(msg) {
+  const payload = JSON.stringify(msg);
+  for (const ws of wss.clients) {
+    if (ws.readyState === ws.OPEN) ws.send(payload);
+  }
+}
+
 // --- WebSocket -------------------------------------------------------------
 const wss = new WebSocketServer({ server: httpServer });
 
@@ -103,6 +110,9 @@ wss.on('connection', (ws) => {
         worldConfig.mode = msg.mode === 'coin-rush' ? 'coin-rush' : 'classic';
         worldConfig.holdSecs = clamp(parseInt(msg.holdSecs) || 10, 5, 120);
         world = createWorld(currentLevelIndex);
+        if (worldConfig.mode === 'coin-rush' && world.tryHorde()) {
+          setImmediate(() => broadcast({ type: 'chaos', event: 'HORDE_INCOMING' }));
+        }
       }
 
       const id = nextId++;

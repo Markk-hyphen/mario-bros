@@ -163,6 +163,29 @@ button#joinBtn:disabled { filter: grayscale(0.7) brightness(0.7); cursor: wait; 
 .cr-bar-bg { width: 120px; height: 8px; background: #1b2440; border-radius: 4px; overflow: hidden; }
 .cr-bar { height: 100%; background: var(--accent); border-radius: 4px; transition: width 0.1s linear; }
 
+/* ---------- Horde banner ---------- */
+#hordeBanner {
+  position: absolute; inset: 0; z-index: 90;
+  display: flex; align-items: center; justify-content: center;
+  pointer-events: none;
+  animation: horde-flash 3.2s ease forwards;
+}
+#hordeBanner span {
+  font-size: clamp(16px, 3vw, 30px);
+  font-weight: 700; letter-spacing: 4px; text-transform: uppercase;
+  color: #ff4040;
+  text-shadow: 0 0 22px rgba(255,50,50,0.9), 0 0 50px rgba(255,50,50,0.45);
+  background: rgba(10,0,0,0.84);
+  border: 2px solid rgba(255,50,50,0.55);
+  padding: 20px 42px; border-radius: 12px;
+}
+@keyframes horde-flash {
+  0%   { opacity: 0; transform: scale(1.12); }
+  10%  { opacity: 1; transform: scale(1); }
+  72%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+
 /* ---------- Debug respawn (beta only) ---------- */
 #debugRespawn {
   position: absolute; bottom: 14px; left: 14px; z-index: 40;

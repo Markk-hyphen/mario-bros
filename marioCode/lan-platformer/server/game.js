@@ -459,6 +459,28 @@ class World {
       levelName:  this.levelName,
     };
   }
+
+  // Multiplica los enemigos × HORDE_MULTIPLIER. Llámalo después de spawnEnemies().
+  // Devuelve true si el evento se activó.
+  tryHorde() {
+    if (Math.random() >= C.HORDE_MULTIPLIER_CHANCE) return false;
+    const originals = this.enemies.slice();
+    for (let i = 0; i < originals.length * (C.HORDE_MULTIPLIER - 1); i++) {
+      const src = originals[i % originals.length];
+      this.enemies.push({
+        id: this.nextEnemyId++,
+        x: src.respawn.x, y: src.respawn.y,
+        vx: 0, vy: 0,
+        w: C.ENEMY_W, h: C.ENEMY_H,
+        dir: Math.random() < 0.5 ? -1 : 1,
+        alive: true,
+        hp:    C.ENEMY_MAX_HP[this.levelIndex],
+        maxHp: C.ENEMY_MAX_HP[this.levelIndex],
+        respawn: { x: src.respawn.x, y: src.respawn.y },
+      });
+    }
+    return true;
+  }
 }
 
 function aabb(ax, ay, aw, ah, bx, by, bw, bh) {

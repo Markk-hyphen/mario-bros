@@ -54,6 +54,10 @@ const STUPIDITY_CURSE_CHANCE    = 0.50;  // 50% de chance cuando se cumple la co
 const STUPIDITY_CURSE_COOLDOWN  = 1800;  // ticks entre activaciones globales (~30s a 60Hz)
 const STUPIDITY_CURSE_DURATION  = 360;   // ticks que dura la maldición (~6s a 60Hz)
 
+// --- Horde Multiplier (Coin Rush) ---
+const HORDE_MULTIPLIER_CHANCE = 0.08; // 8% al crear el mundo en coin-rush
+const HORDE_MULTIPLIER        = 3;    // enemigos × 3
+
 const PLAYER_COLORS = [
   '#ff5d5d', '#4dd2ff', '#5dff8f', '#ffd24d',
   '#c06dff', '#ff8f3d', '#3dffe0', '#ff6db0',
@@ -73,4 +77,5 @@ module.exports = {
   COIN_SCORE, STOMP_SCORE, PLAYER_COLORS,
   STUPIDITY_CURSE_MIN_SCORE, STUPIDITY_CURSE_CHANCE,
   STUPIDITY_CURSE_COOLDOWN, STUPIDITY_CURSE_DURATION,
+  HORDE_MULTIPLIER_CHANCE, HORDE_MULTIPLIER,
 };
