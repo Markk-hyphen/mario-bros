@@ -103,7 +103,15 @@ button#joinBtn:disabled { filter: grayscale(0.7) brightness(0.7); cursor: wait; 
 .row .sc { color: var(--warn); margin-left: auto; padding-left: 14px; }
 .row .lv { opacity: 0.85; }
 .conn { background: rgba(11,15,26,0.72); border: 1px solid var(--line); padding: 5px 10px; border-radius: 6px; font-size: 12px; color: #8a96b8; }
-.conn.bad { color: var(--warn); border-color: var(--warn); }
+.conn.bad    { color: var(--warn); border-color: var(--warn); }
+.conn.cursed {
+  color: #ff40ff; border-color: #ff40ff;
+  animation: curse-pulse 0.35s infinite alternate;
+}
+@keyframes curse-pulse {
+  from { opacity: 1; }
+  to   { opacity: 0.45; }
+}
 
 /* ---------- Controles táctiles ---------- */
 .touch { position: absolute; inset: auto 0 0 0; z-index: 30; display: flex; justify-content: space-between; align-items: flex-end; padding: 18px 22px 28px; pointer-events: none; }

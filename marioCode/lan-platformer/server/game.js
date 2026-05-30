@@ -33,6 +33,8 @@ class World {
     this.gameOver = false;
     this.winner = null;
 
+    this.stupidityCooldown = 0; // ticks restantes del cooldown global del curse
+
     this.spawnEnemies();
     for (const co of this.level.coins) this.coins.set(co.id, { ...co });
     this.nextCoinId = this.level.coins.length;
@@ -118,6 +120,7 @@ class World {
       hp: C.MAX_HP, invuln: 0,
       fireCd: 0,
       djump: false, stompStreak: 0, streakTimer: 0,
+      cursed: false, curseTicksLeft: 0,
       spawn: { x: spawn.x, y: spawn.y },
       input: { left: false, right: false, jump: false, fire: false },
     };
@@ -186,6 +189,8 @@ class World {
   step() {
     if (this.gameOver) return;
     this.tick++;
+    if (this.stupidityCooldown > 0) this.stupidityCooldown--;
+    if (this.tick % 60 === 0) this.checkStupidCurse();
     for (const p of this.players.values()) this.updatePlayer(p);
     for (const e of this.enemies) this.updateEnemy(e);
     this.updateBullets();
@@ -228,10 +233,42 @@ class World {
     }
   }
 
-  updatePlayer(p) {
-    const inp = p.input;
+  checkStupidCurse() {
+    if (this.stupidityCooldown > 0) return;
+    if (this.players.size < 2) return;
 
-    const dir = (inp.right ? 1 : 0) - (inp.left ? 1 : 0);
+    // El "caster" es el jugador con más score por encima del umbral.
+    let caster = null;
+    for (const p of this.players.values()) {
+      if (p.score >= C.STUPIDITY_CURSE_MIN_SCORE) {
+        if (!caster || p.score > caster.score) caster = p;
+      }
+    }
+    if (!caster) return;
+    if (Math.random() >= C.STUPIDITY_CURSE_CHANCE) return;
+
+    // Maldice a todos excepto al caster.
+    for (const p of this.players.values()) {
+      if (p.id === caster.id) continue;
+      p.cursed = true;
+      p.curseTicksLeft = C.STUPIDITY_CURSE_DURATION;
+    }
+    this.stupidityCooldown = C.STUPIDITY_CURSE_COOLDOWN;
+  }
+
+  updatePlayer(p) {
+    // Expirar curse por tick
+    if (p.curseTicksLeft > 0) {
+      p.curseTicksLeft--;
+      if (p.curseTicksLeft === 0) p.cursed = false;
+    }
+
+    const inp = p.input;
+    // Inversión de controles server-side: el cliente no sabe nada de esto.
+    const moveLeft  = p.cursed ? inp.right : inp.left;
+    const moveRight = p.cursed ? inp.left  : inp.right;
+
+    const dir = (moveRight ? 1 : 0) - (moveLeft ? 1 : 0);
     if (dir !== 0) {
       p.vx += dir * C.MOVE_ACCEL;
       p.vx = Math.max(-C.MAX_RUN, Math.min(C.MAX_RUN, p.vx));
@@ -385,6 +422,8 @@ class World {
         iv: p.invuln > 0 ? 1 : 0,
         dj: p.djump ? 1 : 0,
         ss: p.stompStreak,
+        cx: p.cursed ? 1 : 0,
+        ct: p.curseTicksLeft,
       })),
       enemies: this.enemies.filter((e) => e.alive).map((e) => ({
         id: e.id, x: Math.round(e.x), y: Math.round(e.y), d: e.dir,
