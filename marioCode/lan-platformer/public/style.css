@@ -119,3 +119,58 @@ button#joinBtn:disabled { filter: grayscale(0.7) brightness(0.7); cursor: wait; 
 .tb.jump { width: 96px; height: 96px; }
 .tb.fire { color: var(--warn); }
 .tb.fire:active { background: rgba(255,210,77,0.25); border-color: var(--warn); }
+
+/* ---------- Selector de modo (lobby) ---------- */
+.mode-row { display: flex; gap: 10px; margin: 20px 0 0; }
+.mode-btn {
+  flex: 1; padding: 10px; cursor: pointer;
+  font-family: var(--mono); font-size: 13px; letter-spacing: 2px; font-weight: 700;
+  color: var(--ink); background: #0c1322;
+  border: 2px solid var(--line); border-radius: 8px;
+  transition: border-color 0.15s, color 0.15s;
+}
+.mode-btn.active { border-color: var(--accent); color: var(--accent); }
+.cr-options { margin-top: 14px; }
+.cr-options label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 2px; color: #8a96b8; margin-bottom: 8px; }
+.cr-options input { width: 100%; padding: 10px 14px; font-family: var(--mono); font-size: 16px; background: #0c1322; color: var(--ink); border: 2px solid var(--line); border-radius: 8px; outline: none; }
+.cr-options input:focus { border-color: var(--warn); }
+
+/* ---------- Coin Rush HUD (in-game) ---------- */
+.cr-hud {
+  position: absolute; bottom: 0; left: 50%; transform: translateX(-50%);
+  z-index: 25; display: flex; flex-direction: column; align-items: center;
+  gap: 8px; padding-bottom: 18px; pointer-events: none;
+}
+.cr-coins {
+  background: rgba(11,15,26,0.82); border: 1px solid var(--warn);
+  padding: 5px 16px; border-radius: 20px;
+  font-size: 13px; color: var(--warn); letter-spacing: 1px;
+}
+.cr-hold {
+  display: flex; align-items: center; gap: 10px;
+  background: rgba(11,15,26,0.88); border: 1px solid var(--accent);
+  padding: 6px 16px; border-radius: 20px; font-size: 13px;
+}
+.cr-hold span { color: var(--accent); }
+.cr-bar-bg { width: 120px; height: 8px; background: #1b2440; border-radius: 4px; overflow: hidden; }
+.cr-bar { height: 100%; background: var(--accent); border-radius: 4px; transition: width 0.1s linear; }
+
+/* ---------- Win overlay ---------- */
+.win-overlay {
+  position: fixed; inset: 0; z-index: 100;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(7,11,21,0.88);
+}
+.win-panel {
+  background: var(--panel); border: 2px solid var(--accent);
+  border-radius: 16px; padding: 48px 56px; text-align: center;
+  box-shadow: 0 0 60px rgba(93,255,143,0.2);
+}
+.win-title { font-size: 13px; letter-spacing: 4px; text-transform: uppercase; color: #8a96b8; margin-bottom: 12px; }
+.win-name { font-size: 36px; font-weight: 700; color: var(--accent); letter-spacing: 2px; margin-bottom: 8px; }
+.win-score { font-size: 16px; color: var(--warn); margin-bottom: 32px; }
+.win-panel button {
+  padding: 14px 36px; cursor: pointer;
+  font-family: var(--mono); font-size: 14px; letter-spacing: 3px; font-weight: 700;
+  color: #07140c; background: var(--accent); border: none; border-radius: 8px;
+}

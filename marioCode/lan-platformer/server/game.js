@@ -7,7 +7,7 @@ const { ROWS, parseLevel } = require('./level');
 // ---------------------------------------------------------------------------
 
 class World {
-  constructor() {
+  constructor(mode = 'classic', holdSecs = 10) {
     this.level = parseLevel(ROWS);
     this.worldW = this.level.cols * C.TILE;
     this.worldH = this.level.rows * C.TILE;
@@ -23,9 +23,16 @@ class World {
     this.nextBulletId = 0;
     this.colorIdx = 0;
 
+    // --- Modo de juego ---
+    this.mode = mode;
+    this.holdTarget = holdSecs * C.SIM_HZ;
+    this.holdTicks = 0;
+    this.holdLeader = null;  // id del jugador en hold
+    this.gameOver = false;
+    this.winner = null;      // { id, name, score }
+
     this.spawnEnemies();
     for (const co of this.level.coins) this.coins.set(co.id, { ...co });
-    // Las monedas dropeadas necesitan IDs únicos por encima de los del nivel.
     this.nextCoinId = this.level.coins.length;
   }
 
@@ -157,11 +164,51 @@ class World {
 
   // -------------------------------------------------------------------- step
   step() {
+    if (this.gameOver) return;
     this.tick++;
     for (const p of this.players.values()) this.updatePlayer(p);
     for (const e of this.enemies) this.updateEnemy(e);
     this.updateBullets();
     this.resolveInteractions();
+    if (this.mode === 'coin-rush') this.updateCoinRush();
+  }
+
+  updateCoinRush() {
+    if (this.players.size === 0) return;
+
+    // Mientras haya monedas en el mapa no hay hold.
+    if (this.coins.size > 0) {
+      this.holdLeader = null;
+      this.holdTicks = 0;
+      return;
+    }
+
+    // Todas las monedas recogidas: buscar líder único.
+    let leader = null;
+    let topScore = 0;
+    let tied = false;
+    for (const p of this.players.values()) {
+      if (p.score > topScore) { topScore = p.score; leader = p; tied = false; }
+      else if (p.score === topScore && topScore > 0) { tied = true; }
+    }
+
+    if (!leader || tied) {
+      this.holdLeader = null;
+      this.holdTicks = 0;
+      return;
+    }
+
+    // Si el líder cambió, reiniciar el contador.
+    if (this.holdLeader !== leader.id) {
+      this.holdLeader = leader.id;
+      this.holdTicks = 0;
+    }
+
+    this.holdTicks++;
+    if (this.holdTicks >= this.holdTarget) {
+      this.gameOver = true;
+      this.winner = { id: leader.id, name: leader.name, score: leader.score };
+    }
   }
 
   updatePlayer(p) {
@@ -302,6 +349,14 @@ class World {
         id: b.id, x: Math.round(b.x), y: Math.round(b.y), d: b.vx > 0 ? 1 : -1,
       })),
       coins: [...this.coins.values()].map((c) => ({ id: c.id, x: c.x, y: c.y })),
+      cr: this.mode === 'coin-rush' ? {
+        coinsLeft: this.coins.size,
+        holdLeader: this.holdLeader,
+        holdTicks: this.holdTicks,
+        holdTarget: this.holdTarget,
+        gameOver: this.gameOver,
+        winner: this.winner,
+      } : null,
     };
   }
 
@@ -314,6 +369,8 @@ class World {
       rows: this.level.rows,
       maxHp: C.MAX_HP,
       tiles: this.level.renderRows,
+      mode: this.mode,
+      holdTarget: this.holdTarget,
     };
   }
 }

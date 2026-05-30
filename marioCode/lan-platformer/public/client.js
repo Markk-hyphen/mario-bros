@@ -20,6 +20,16 @@ const ctx = canvas.getContext('2d');
 const scoreboard = document.getElementById('scoreboard');
 const connEl = document.getElementById('conn');
 const touch = document.getElementById('touch');
+const crHud = document.getElementById('crHud');
+const crCoinsEl = document.getElementById('crCoins');
+const crHoldEl = document.getElementById('crHold');
+const crHoldNameEl = document.getElementById('crHoldName');
+const crBar = document.getElementById('crBar');
+const crHoldSecsEl = document.getElementById('crHoldSecs');
+const winOverlay = document.getElementById('winOverlay');
+const winNameEl = document.getElementById('winName');
+const winScoreEl = document.getElementById('winScore');
+const restartBtn = document.getElementById('restartBtn');
 
 // ---- Estado ----
 let ws = null;
@@ -27,18 +37,30 @@ let myId = null;
 let cfg = null;
 let worldW = 0, worldH = 0;
 let maxHp = 100;
+let gameMode = 'classic';
 const buffer = [];
 let latest = null;
 const input = { left: false, right: false, jump: false, fire: false };
 let lastSent = '';
 
+// ---- Selector de modo (lobby) ----
+let selectedMode = 'classic';
+for (const btn of document.querySelectorAll('.mode-btn')) {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.mode-btn').forEach((b) => b.classList.remove('active'));
+    btn.classList.add('active');
+    selectedMode = btn.dataset.mode;
+    document.getElementById('crOptions').classList.toggle('hidden', selectedMode !== 'coin-rush');
+  });
+}
+
 // ===========================================================================
 // Conexión
 // ===========================================================================
-function connect(name) {
+function connect(name, mode, holdSecs) {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
   ws = new WebSocket(`${proto}://${location.host}`);
-  ws.onopen = () => ws.send(JSON.stringify({ type: 'join', name }));
+  ws.onopen = () => ws.send(JSON.stringify({ type: 'join', name, mode, holdSecs }));
   ws.onmessage = (ev) => {
     const msg = JSON.parse(ev.data);
     if (msg.type === 'welcome') {
@@ -47,6 +69,7 @@ function connect(name) {
       maxHp = msg.maxHp || 100;
       worldW = msg.cols * msg.tile;
       worldH = msg.rows * msg.tile;
+      gameMode = msg.mode || 'classic';
       enterGame();
     } else if (msg.type === 'state') {
       const t = performance.now();
@@ -54,6 +77,9 @@ function connect(name) {
       latest = msg;
       while (buffer.length > 2 && t - buffer[0].t > 1000) buffer.shift();
       setConn(true);
+      if (gameMode === 'coin-rush' && msg.cr) updateCoinRushHud(msg.cr);
+    } else if (msg.type === 'restart') {
+      location.reload();
     }
   };
   ws.onclose = () => {
@@ -74,9 +100,10 @@ function setConn(ok, txt) {
 // ===========================================================================
 function join() {
   const name = (nameInput.value || 'P1').trim().slice(0, 16) || 'P1';
+  const holdSecs = parseInt(document.getElementById('holdSecs').value) || 10;
   joinBtn.disabled = true;
   statusEl.textContent = 'conectando…';
-  try { connect(name); } catch (e) { statusEl.textContent = 'no se pudo conectar'; joinBtn.disabled = false; }
+  try { connect(name, selectedMode, holdSecs); } catch (e) { statusEl.textContent = 'no se pudo conectar'; joinBtn.disabled = false; }
 }
 joinBtn.addEventListener('click', join);
 nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') join(); });
@@ -84,10 +111,40 @@ nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') join(); })
 function enterGame() {
   lobby.classList.add('hidden');
   game.classList.remove('hidden');
+  if (gameMode === 'coin-rush') crHud.classList.remove('hidden');
   resize();
   if ('ontouchstart' in window) touch.classList.remove('hidden');
   requestAnimationFrame(render);
 }
+
+function updateCoinRushHud(cr) {
+  crCoinsEl.textContent = cr.coinsLeft > 0
+    ? `monedas: ${cr.coinsLeft}`
+    : 'todas recogidas';
+
+  if (cr.gameOver && cr.winner) {
+    winNameEl.textContent = cr.winner.name;
+    winScoreEl.textContent = `${cr.winner.score} pts`;
+    winOverlay.classList.remove('hidden');
+    return;
+  }
+
+  if (cr.holdLeader !== null && cr.coinsLeft === 0) {
+    crHoldEl.classList.remove('hidden');
+    const leader = latest && latest.players.find((p) => p.id === cr.holdLeader);
+    crHoldNameEl.textContent = leader ? leader.n : '?';
+    const frac = Math.min(cr.holdTicks / cr.holdTarget, 1);
+    crBar.style.width = `${(frac * 100).toFixed(1)}%`;
+    const secsLeft = Math.ceil((cr.holdTarget - cr.holdTicks) / 60);
+    crHoldSecsEl.textContent = `${secsLeft}s`;
+  } else {
+    crHoldEl.classList.add('hidden');
+  }
+}
+
+restartBtn.addEventListener('click', () => {
+  if (ws && ws.readyState === ws.OPEN) ws.send(JSON.stringify({ type: 'restart' }));
+});
 
 // ===========================================================================
 // Input

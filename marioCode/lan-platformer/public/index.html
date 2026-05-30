@@ -14,6 +14,16 @@
       <p class="tag">co-op de andar y saltar // en red local</p>
       <label for="name">tu nombre</label>
       <input id="name" maxlength="16" autocomplete="off" placeholder="P1" />
+
+      <div class="mode-row">
+        <button class="mode-btn active" data-mode="classic">CLÁSICO</button>
+        <button class="mode-btn" data-mode="coin-rush">COIN RUSH</button>
+      </div>
+      <div id="crOptions" class="cr-options hidden">
+        <label for="holdSecs">segundos para sostener todas las monedas</label>
+        <input id="holdSecs" type="number" min="5" max="120" value="10" />
+      </div>
+
       <button id="joinBtn">ENTRAR</button>
       <p id="status" class="status"></p>
       <div class="controls">
@@ -32,6 +42,22 @@
     <div id="hud">
       <div id="scoreboard"></div>
       <div id="conn" class="conn"></div>
+    </div>
+    <div id="crHud" class="cr-hud hidden">
+      <div id="crCoins" class="cr-coins"></div>
+      <div id="crHold" class="cr-hold hidden">
+        <span id="crHoldName"></span>
+        <div class="cr-bar-bg"><div id="crBar" class="cr-bar"></div></div>
+        <span id="crHoldSecs"></span>
+      </div>
+    </div>
+    <div id="winOverlay" class="win-overlay hidden">
+      <div class="win-panel">
+        <div class="win-title">GANÓ</div>
+        <div id="winName" class="win-name"></div>
+        <div id="winScore" class="win-score"></div>
+        <button id="restartBtn">JUGAR DE NUEVO</button>
+      </div>
     </div>
     <!-- Controles táctiles para celular/tablet -->
     <div id="touch" class="touch hidden">

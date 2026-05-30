@@ -12,6 +12,8 @@ const { World } = require('./game');
 const PORT = process.env.PORT || 3000;
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
 
+function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
+
 // --- Servidor HTTP estático mínimo (sin dependencias extra) ----------------
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -38,7 +40,19 @@ const httpServer = http.createServer((req, res) => {
 });
 
 // --- Juego -----------------------------------------------------------------
-const world = new World();
+// El mundo se crea cuando el primer jugador entra (para recibir la config de modo).
+let world = null;
+let worldConfig = { mode: 'classic', holdSecs: 10 };
+
+function getOrCreateWorld(mode, holdSecs) {
+  if (!world) {
+    worldConfig.mode = mode === 'coin-rush' ? 'coin-rush' : 'classic';
+    worldConfig.holdSecs = clamp(parseInt(holdSecs) || 10, 5, 120);
+    world = new World(worldConfig.mode, worldConfig.holdSecs);
+  }
+  return world;
+}
+
 const wss = new WebSocketServer({ server: httpServer });
 
 let nextId = 1;
@@ -53,19 +67,29 @@ wss.on('connection', (ws) => {
     try { msg = JSON.parse(raw.toString()); } catch { return; }
 
     if (msg.type === 'join' && ws.playerId === null) {
+      const w = getOrCreateWorld(msg.mode, msg.holdSecs);
       const id = nextId++;
       ws.playerId = id;
-      world.addPlayer(id, msg.name);
-      ws.send(JSON.stringify(world.welcomeFor(id)));
+      w.addPlayer(id, msg.name);
+      ws.send(JSON.stringify(w.welcomeFor(id)));
       return;
     }
-    if (msg.type === 'input' && ws.playerId !== null) {
+    if (msg.type === 'input' && ws.playerId !== null && world) {
       world.setInput(ws.playerId, msg);
+    }
+    if (msg.type === 'restart' && ws.playerId !== null && world && world.gameOver) {
+      world = new World(worldConfig.mode, worldConfig.holdSecs);
+      nextId = 1;
+      for (const client of wss.clients) {
+        if (client.readyState === client.OPEN) {
+          client.send(JSON.stringify({ type: 'restart' }));
+        }
+      }
     }
   });
 
   ws.on('close', () => {
-    if (ws.playerId !== null) world.removePlayer(ws.playerId);
+    if (ws.playerId !== null && world) world.removePlayer(ws.playerId);
   });
   ws.on('error', () => {});
 });
@@ -86,11 +110,12 @@ const STEP_MS = 1000 / C.SIM_HZ;
 let last = Date.now();
 let acc = 0;
 setInterval(() => {
+  if (!world) return;
   const now = Date.now();
   acc += now - last;
   last = now;
   let steps = 0;
-  while (acc >= STEP_MS && steps < 5) { // tope de 5 para evitar espiral de la muerte
+  while (acc >= STEP_MS && steps < 5) {
     world.step();
     acc -= STEP_MS;
     steps++;
@@ -99,7 +124,7 @@ setInterval(() => {
 
 // Broadcast de snapshots a 30 Hz.
 setInterval(() => {
-  if (wss.clients.size === 0) return;
+  if (!world || wss.clients.size === 0) return;
   const payload = JSON.stringify(world.snapshot());
   for (const ws of wss.clients) {
     if (ws.readyState === ws.OPEN && ws.playerId !== null) ws.send(payload);
