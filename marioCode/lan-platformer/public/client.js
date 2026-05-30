@@ -418,6 +418,19 @@ function drawPlayer(p, isMe, now) {
     ctx.fillRect(bx, by, bw * frac, 3);
   }
 
+  // Glow magenta cuando está maldito
+  if (p.cx) {
+    const pulse = 0.45 + 0.3 * Math.sin(now / 120);
+    ctx.strokeStyle = `rgba(255,64,255,${pulse})`;
+    ctx.lineWidth   = 2;
+    ctx.shadowColor = '#ff40ff';
+    ctx.shadowBlur  = 12;
+    roundRect(x - 2, y - 2, w + 4, h + 4, 8); ctx.stroke();
+    ctx.shadowBlur  = 0;
+    ctx.shadowColor = 'transparent';
+    ctx.lineWidth   = 1;
+  }
+
   // Indicador de doble salto: punto bajo los pies
   ctx.fillStyle = p.dj ? '#4dd2ff' : 'rgba(60,90,120,0.35)';
   ctx.beginPath(); ctx.arc(x + w / 2, y + h + 6, 3, 0, Math.PI * 2); ctx.fill();
@@ -447,7 +460,17 @@ function updateHUD() {
       <span class="lv">♥${p.lv}</span>
       <span class="sc">${p.sc}</span>
     </div>`).join('');
-  if (connEl) connEl.textContent = `Nivel ${levelIndex + 1}/3 • ${levelName}`;
+  const me = latest.players.find((p) => p.id === myId);
+  if (connEl) {
+    if (me && me.cx) {
+      const secsLeft = Math.ceil((me.ct || 0) / 60);
+      connEl.textContent = `CURSED — controles invertidos (${secsLeft}s)`;
+      connEl.classList.add('cursed');
+    } else {
+      connEl.textContent = `Nivel ${levelIndex + 1}/3 • ${levelName}`;
+      connEl.classList.remove('cursed');
+    }
+  }
 }
 
 // ===========================================================================

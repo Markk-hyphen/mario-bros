@@ -48,6 +48,12 @@ const DROP_MAX_COINS = 8;    // tope de monedas que caen (evita spamear el piso)
 const COIN_SCORE = 100;
 const STOMP_SCORE = 200;
 
+// --- Stupidity Curse ---
+const STUPIDITY_CURSE_MIN_SCORE = 3000;  // score mínimo para disparar la maldición
+const STUPIDITY_CURSE_CHANCE    = 0.50;  // 50% de chance cuando se cumple la condición
+const STUPIDITY_CURSE_COOLDOWN  = 1800;  // ticks entre activaciones globales (~30s a 60Hz)
+const STUPIDITY_CURSE_DURATION  = 360;   // ticks que dura la maldición (~6s a 60Hz)
+
 const PLAYER_COLORS = [
   '#ff5d5d', '#4dd2ff', '#5dff8f', '#ffd24d',
   '#c06dff', '#ff8f3d', '#3dffe0', '#ff6db0',
@@ -65,4 +71,6 @@ module.exports = {
   ENEMY_SPEED:  [1.4, 1.6, 1.8],  // velocidad de patrulla por nivel
   ENEMY_MAX_HP: [1,   2,   3],     // balas necesarias para matar por nivel
   COIN_SCORE, STOMP_SCORE, PLAYER_COLORS,
+  STUPIDITY_CURSE_MIN_SCORE, STUPIDITY_CURSE_CHANCE,
+  STUPIDITY_CURSE_COOLDOWN, STUPIDITY_CURSE_DURATION,
 };
