@@ -38,6 +38,8 @@ let cfg = null;
 let worldW = 0, worldH = 0;
 let maxHp = 100;
 let gameMode = 'classic';
+let levelIndex = 0;
+let levelName = '';
 const buffer = [];
 let latest = null;
 const input = { left: false, right: false, jump: false, fire: false };
@@ -70,11 +72,20 @@ function connect(name, mode, holdSecs) {
       worldW = msg.cols * msg.tile;
       worldH = msg.rows * msg.tile;
       gameMode = msg.mode || 'classic';
-      enterGame();
+      levelIndex = msg.levelIndex || 0;
+      levelName  = msg.levelName  || '';
+      // Al recibir welcome en mid-game (transición de nivel) refrescamos el mapa.
+      if (cfg && game && !game.classList.contains('hidden')) {
+        resize();
+      } else {
+        enterGame();
+      }
     } else if (msg.type === 'state') {
       const t = performance.now();
       buffer.push({ t, state: msg });
       latest = msg;
+      levelIndex = msg.levelIndex ?? levelIndex;
+      levelName  = msg.levelName  ?? levelName;
       while (buffer.length > 2 && t - buffer[0].t > 1000) buffer.shift();
       setConn(true);
       if (gameMode === 'coin-rush' && msg.cr) updateCoinRushHud(msg.cr);
@@ -332,15 +343,29 @@ function drawEnemy(e, now) {
   ctx.fillRect(ex, y + 8, 8, 8);
   ctx.fillStyle = '#1a0d13';
   ctx.fillRect(ex + (e.d > 0 ? 4 : 0), y + 10, 4, 4);
+
+  // Barra de HP (solo si tiene más de 1 HP max — nivel 2 y 3)
+  if (e.maxHp > 1 && typeof e.hp === 'number') {
+    const frac = clamp(e.hp / e.maxHp, 0, 1);
+    const bw = w + 4, bx = x - 2, by = y - 9;
+    ctx.fillStyle = 'rgba(7,11,21,0.8)';
+    ctx.fillRect(bx - 1, by - 1, bw + 2, 5);
+    ctx.fillStyle = '#b54a6a';
+    ctx.fillRect(bx, by, bw * frac, 3);
+  }
 }
 
 function drawBullet(b) {
-  const x = b.x, y = b.y, w = 10, h = 4;
-  // Estela.
-  ctx.fillStyle = 'rgba(255,210,77,0.35)';
-  ctx.fillRect(x - b.d * 8, y, w, h);
-  // Bala.
-  ctx.fillStyle = '#ffe680';
+  const x = b.x, y = b.y;
+  let w = 10, h = 4, color = '#ffe680', glow = 'rgba(255,210,77,0.35)';
+  if (levelIndex === 1) {
+    w = 12; h = 5; color = '#ff9933'; glow = 'rgba(255,153,51,0.4)';
+  } else if (levelIndex >= 2) {
+    w = 15; h = 6; color = '#ff3333'; glow = 'rgba(255,51,51,0.5)';
+  }
+  ctx.fillStyle = glow;
+  ctx.fillRect(x - b.d * (w - 2), y - 1, w + 4, h + 2);
+  ctx.fillStyle = color;
   ctx.fillRect(x, y, w, h);
   ctx.fillStyle = '#fff';
   ctx.fillRect(b.d > 0 ? x + w - 3 : x, y, 3, h);
@@ -393,6 +418,7 @@ function updateHUD() {
       <span class="lv">♥${p.lv}</span>
       <span class="sc">${p.sc}</span>
     </div>`).join('');
+  if (connEl) connEl.textContent = `Nivel ${levelIndex + 1}/3 • ${levelName}`;
 }
 
 // ===========================================================================

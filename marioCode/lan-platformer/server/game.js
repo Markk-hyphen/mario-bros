@@ -1,5 +1,5 @@
 const C = require('./constants');
-const { ROWS, parseLevel } = require('./level');
+const { LEVELS, getLevelByIndex } = require('./level');
 
 // ---------------------------------------------------------------------------
 // Simulación autoritativa. Resolución de colisión por ejes separados (X y luego
@@ -7,8 +7,10 @@ const { ROWS, parseLevel } = require('./level');
 // ---------------------------------------------------------------------------
 
 class World {
-  constructor(mode = 'classic', holdSecs = 10) {
-    this.level = parseLevel(ROWS);
+  constructor(levelIndex = 0, mode = 'classic', holdSecs = 10) {
+    this.levelIndex = levelIndex;
+    this.levelName  = LEVELS[levelIndex].name;
+    this.level = getLevelByIndex(levelIndex);
     this.worldW = this.level.cols * C.TILE;
     this.worldH = this.level.rows * C.TILE;
     this.deathY = this.worldH + 120;
@@ -27,9 +29,9 @@ class World {
     this.mode = mode;
     this.holdTarget = holdSecs * C.SIM_HZ;
     this.holdTicks = 0;
-    this.holdLeader = null;  // id del jugador en hold
+    this.holdLeader = null;
     this.gameOver = false;
-    this.winner = null;      // { id, name, score }
+    this.winner = null;
 
     this.spawnEnemies();
     for (const co of this.level.coins) this.coins.set(co.id, { ...co });
@@ -44,9 +46,15 @@ class World {
         w: C.ENEMY_W, h: C.ENEMY_H,
         dir: Math.random() < 0.5 ? -1 : 1,
         alive: true,
+        hp: C.ENEMY_MAX_HP[this.levelIndex],
+        maxHp: C.ENEMY_MAX_HP[this.levelIndex],
         respawn: { x: s.x, y: s.y },
       });
     }
+  }
+
+  isLevelCleared() {
+    return this.enemies.length > 0 && this.enemies.every((e) => !e.alive);
   }
 
   solidAt(col, row) {
@@ -95,17 +103,18 @@ class World {
   }
 
   // ------------------------------------------------------------------ players
-  addPlayer(id, name) {
+  addPlayer(id, name, color, score = 0) {
     const spawns = this.level.playerSpawns;
     const spawn = spawns[this.players.size % spawns.length] || { x: 64, y: 64 };
-    const color = C.PLAYER_COLORS[this.colorIdx++ % C.PLAYER_COLORS.length];
+    const resolvedColor = color || C.PLAYER_COLORS[this.colorIdx++ % C.PLAYER_COLORS.length];
     const p = {
-      id, name: (name || 'P').slice(0, 16), color,
+      id, name: (name || 'P').slice(0, 16), color: resolvedColor,
       x: spawn.x, y: spawn.y, vx: 0, vy: 0,
       w: C.PLAYER_W, h: C.PLAYER_H,
       onGround: false, facing: 1,
       coyote: 0, buffer: 0, prevJump: false,
-      score: 0, lives: C.START_LIVES,
+      score,
+      lives: C.START_LIVES,
       hp: C.MAX_HP, invuln: 0,
       fireCd: 0,
       spawn: { x: spawn.x, y: spawn.y },
@@ -120,31 +129,34 @@ class World {
   setInput(id, input) {
     const p = this.players.get(id);
     if (!p) return;
-    p.input.left = !!input.left;
+    p.input.left  = !!input.left;
     p.input.right = !!input.right;
-    p.input.jump = !!input.jump;
-    p.input.fire = !!input.fire;
+    p.input.jump  = !!input.jump;
+    p.input.fire  = !!input.fire;
   }
 
-  // Aplica daño. Si la vida llega a 0, muere (con o sin botín).
   damage(p, amount, dropLoot) {
     if (p.invuln > 0) return;
     p.hp -= amount;
     if (p.hp <= 0) this.killPlayer(p, dropLoot);
   }
 
+  damageEnemy(enemy) {
+    if (!enemy.alive) return;
+    enemy.hp -= C.BULLET_DAMAGE_ENEMY;
+    if (enemy.hp <= 0) enemy.alive = false;
+  }
+
   killPlayer(p, dropLoot) {
-    // Solo dropea si murió dentro del mapa (caída al vacío = botín perdido).
     if (dropLoot && p.y < this.deathY) this.dropCoins(p);
     p.hp = C.MAX_HP;
     p.x = p.spawn.x; p.y = p.spawn.y;
     p.vx = 0; p.vy = 0;
     p.invuln = C.INVULN_TICKS;
     p.lives -= 1;
-    if (p.lives <= 0) p.lives = C.START_LIVES; // modo casual: nunca "game over"
+    if (p.lives <= 0) p.lives = C.START_LIVES;
   }
 
-  // Convierte parte del score del muerto en monedas físicas en el piso.
   dropCoins(p) {
     let n = Math.floor((p.score * C.DROP_FRACTION) / C.DROP_COIN_VALUE);
     n = Math.min(n, C.DROP_MAX_COINS);
@@ -176,14 +188,12 @@ class World {
   updateCoinRush() {
     if (this.players.size === 0) return;
 
-    // Mientras haya monedas en el mapa no hay hold.
     if (this.coins.size > 0) {
       this.holdLeader = null;
       this.holdTicks = 0;
       return;
     }
 
-    // Todas las monedas recogidas: buscar líder único.
     let leader = null;
     let topScore = 0;
     let tied = false;
@@ -198,7 +208,6 @@ class World {
       return;
     }
 
-    // Si el líder cambió, reiniciar el contador.
     if (this.holdLeader !== leader.id) {
       this.holdLeader = leader.id;
       this.holdTicks = 0;
@@ -237,11 +246,10 @@ class World {
     this.moveX(p);
     this.moveY(p);
 
-    // Disparo (semiautomático: respeta cooldown mientras mantenés la tecla).
     if (p.fireCd > 0) p.fireCd--;
     if (inp.fire && p.fireCd === 0) this.fire(p);
 
-    if (p.y > this.deathY) this.killPlayer(p, false); // caída al vacío, sin botín
+    if (p.y > this.deathY) this.killPlayer(p, false);
     if (p.invuln > 0) p.invuln--;
   }
 
@@ -265,17 +273,28 @@ class World {
       b.life--;
       if (b.life <= 0) continue;
 
-      // Pared.
       const col = Math.floor((b.x + C.BULLET_W / 2) / C.TILE);
       const row = Math.floor((b.y + C.BULLET_H / 2) / C.TILE);
       if (this.solidAt(col, row)) continue;
 
-      // Jugador (no el dueño, no invulnerable).
       let consumed = false;
+
+      // Enemigos
+      for (const e of this.enemies) {
+        if (!e.alive) continue;
+        if (aabb(b.x, b.y, C.BULLET_W, C.BULLET_H, e.x, e.y, e.w, e.h)) {
+          this.damageEnemy(e);
+          consumed = true;
+          break;
+        }
+      }
+      if (consumed) continue;
+
+      // Jugadores (no el dueño, no invulnerable)
       for (const p of this.players.values()) {
         if (p.id === b.owner || p.invuln > 0) continue;
         if (aabb(b.x, b.y, C.BULLET_W, C.BULLET_H, p.x, p.y, p.w, p.h)) {
-          this.damage(p, C.BULLET_DAMAGE, true); // muerte por bala dropea botín
+          this.damage(p, C.BULLET_DAMAGE_PLAYER[this.levelIndex], true);
           consumed = true;
           break;
         }
@@ -289,12 +308,12 @@ class World {
 
   updateEnemy(e) {
     if (!e.alive) return;
-    e.vx = e.dir * C.ENEMY_SPEED;
+    e.vx = e.dir * C.ENEMY_SPEED[this.levelIndex];
 
     const aheadX = e.dir > 0 ? e.x + e.w + 1 : e.x - 1;
     const footCol = Math.floor(aheadX / C.TILE);
     const footRow = Math.floor((e.y + e.h + 1) / C.TILE);
-    if (!this.solidAt(footCol, footRow)) { e.dir *= -1; e.vx = e.dir * C.ENEMY_SPEED; }
+    if (!this.solidAt(footCol, footRow)) { e.dir *= -1; e.vx = e.dir * C.ENEMY_SPEED[this.levelIndex]; }
 
     if (this.moveX(e)) e.dir *= -1;
 
@@ -306,25 +325,23 @@ class World {
 
   resolveInteractions() {
     for (const p of this.players.values()) {
-      // Monedas.
       for (const [cid, co] of this.coins) {
         if (aabb(p.x, p.y, p.w, p.h, co.x, co.y, 20, 20)) {
           this.coins.delete(cid);
           p.score += C.COIN_SCORE;
         }
       }
-      // Enemigos.
       if (p.invuln > 0) continue;
       for (const e of this.enemies) {
         if (!e.alive) continue;
         if (!aabb(p.x, p.y, p.w, p.h, e.x, e.y, e.w, e.h)) continue;
         const pisada = p.vy > 1 && (p.y + p.h) < (e.y + e.h * 0.6);
         if (pisada) {
-          e.alive = false;
+          e.alive = false;  // stomp = one-shot siempre
           p.vy = C.STOMP_BOUNCE;
           p.score += C.STOMP_SCORE;
         } else {
-          this.damage(p, C.ENEMY_DAMAGE, true); // enemigo = 100%, dropea botín
+          this.damage(p, C.ENEMY_DAMAGE, true);
         }
       }
     }
@@ -335,6 +352,8 @@ class World {
     return {
       type: 'state',
       tick: this.tick,
+      levelIndex: this.levelIndex,
+      levelName:  this.levelName,
       players: [...this.players.values()].map((p) => ({
         id: p.id, n: p.name, col: p.color,
         x: Math.round(p.x), y: Math.round(p.y),
@@ -344,6 +363,7 @@ class World {
       })),
       enemies: this.enemies.filter((e) => e.alive).map((e) => ({
         id: e.id, x: Math.round(e.x), y: Math.round(e.y), d: e.dir,
+        hp: e.hp, maxHp: e.maxHp,
       })),
       bullets: this.bullets.map((b) => ({
         id: b.id, x: Math.round(b.x), y: Math.round(b.y), d: b.vx > 0 ? 1 : -1,
@@ -371,6 +391,8 @@ class World {
       tiles: this.level.renderRows,
       mode: this.mode,
       holdTarget: this.holdTarget,
+      levelIndex: this.levelIndex,
+      levelName:  this.levelName,
     };
   }
 }

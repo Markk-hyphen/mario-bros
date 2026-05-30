@@ -7,6 +7,7 @@ const os = require('os');
 const { WebSocketServer } = require('ws');
 
 const C = require('./constants');
+const { LEVELS } = require('./level');
 const { World } = require('./game');
 
 const PORT = process.env.PORT || 3000;
@@ -14,7 +15,7 @@ const PUBLIC_DIR = path.join(__dirname, '..', 'public');
 
 function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
 
-// --- Servidor HTTP estático mínimo (sin dependencias extra) ----------------
+// --- Servidor HTTP estático mínimo -----------------------------------------
 const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
@@ -26,7 +27,6 @@ const httpServer = http.createServer((req, res) => {
   let urlPath = decodeURIComponent((req.url || '/').split('?')[0]);
   if (urlPath === '/') urlPath = '/index.html';
 
-  // Resolución segura dentro de PUBLIC_DIR (evita path traversal).
   const filePath = path.join(PUBLIC_DIR, path.normalize(urlPath));
   if (!filePath.startsWith(PUBLIC_DIR)) {
     res.writeHead(403); res.end('Forbidden'); return;
@@ -39,20 +39,51 @@ const httpServer = http.createServer((req, res) => {
   });
 });
 
-// --- Juego -----------------------------------------------------------------
-// El mundo se crea cuando el primer jugador entra (para recibir la config de modo).
-let world = null;
+// --- Estado de campaña -----------------------------------------------------
+// Vive fuera del World para sobrevivir las transiciones de nivel.
+// campaignData: Map<playerId, { name, color, score }>
+let campaignData = new Map();
+let currentLevelIndex = 0;
 let worldConfig = { mode: 'classic', holdSecs: 10 };
 
-function getOrCreateWorld(mode, holdSecs) {
-  if (!world) {
-    worldConfig.mode = mode === 'coin-rush' ? 'coin-rush' : 'classic';
-    worldConfig.holdSecs = clamp(parseInt(holdSecs) || 10, 5, 120);
-    world = new World(worldConfig.mode, worldConfig.holdSecs);
+let world = null;
+
+function createWorld(levelIndex) {
+  const w = new World(levelIndex, worldConfig.mode, worldConfig.holdSecs);
+  // Re-agregar todos los jugadores conectados con su score acumulado.
+  for (const [id, data] of campaignData) {
+    w.addPlayer(id, data.name, data.color, data.score);
   }
-  return world;
+  return w;
 }
 
+function advanceLevel() {
+  // Guardar scores actuales antes de destruir el world.
+  for (const [id, p] of world.players) {
+    if (campaignData.has(id)) campaignData.get(id).score = p.score;
+  }
+
+  currentLevelIndex++;
+  const isEnd = currentLevelIndex >= LEVELS.length;
+  if (isEnd) currentLevelIndex = 0;
+
+  world = createWorld(currentLevelIndex);
+
+  // Notificar a cada cliente: nuevo world, mismo ws/id.
+  for (const ws of wss.clients) {
+    if (ws.readyState === ws.OPEN && ws.playerId !== null) {
+      ws.send(JSON.stringify(world.welcomeFor(ws.playerId)));
+    }
+  }
+
+  if (isEnd) {
+    console.log('  Campaña completada — reiniciando desde nivel 1.');
+  } else {
+    console.log(`  Nivel ${currentLevelIndex + 1}: ${LEVELS[currentLevelIndex].name}`);
+  }
+}
+
+// --- WebSocket -------------------------------------------------------------
 const wss = new WebSocketServer({ server: httpServer });
 
 let nextId = 1;
@@ -67,19 +98,35 @@ wss.on('connection', (ws) => {
     try { msg = JSON.parse(raw.toString()); } catch { return; }
 
     if (msg.type === 'join' && ws.playerId === null) {
-      const w = getOrCreateWorld(msg.mode, msg.holdSecs);
+      // Primer jugador define el modo; los siguientes heredan el mundo en curso.
+      if (!world) {
+        worldConfig.mode = msg.mode === 'coin-rush' ? 'coin-rush' : 'classic';
+        worldConfig.holdSecs = clamp(parseInt(msg.holdSecs) || 10, 5, 120);
+        world = createWorld(currentLevelIndex);
+      }
+
       const id = nextId++;
       ws.playerId = id;
-      w.addPlayer(id, msg.name);
-      ws.send(JSON.stringify(w.welcomeFor(id)));
+
+      // Color asignado de la paleta global para persistir entre niveles.
+      const color = C.PLAYER_COLORS[(id - 1) % C.PLAYER_COLORS.length];
+      campaignData.set(id, { name: (msg.name || 'P').slice(0, 16), color, score: 0 });
+
+      world.addPlayer(id, campaignData.get(id).name, color, 0);
+      ws.send(JSON.stringify(world.welcomeFor(id)));
       return;
     }
+
     if (msg.type === 'input' && ws.playerId !== null && world) {
       world.setInput(ws.playerId, msg);
     }
+
     if (msg.type === 'restart' && ws.playerId !== null && world && world.gameOver) {
-      world = new World(worldConfig.mode, worldConfig.holdSecs);
+      // Restart solo aplica en modo coin-rush (el clásico no tiene game over).
+      campaignData.clear();
+      currentLevelIndex = 0;
       nextId = 1;
+      world = null;
       for (const client of wss.clients) {
         if (client.readyState === client.OPEN) {
           client.send(JSON.stringify({ type: 'restart' }));
@@ -89,12 +136,15 @@ wss.on('connection', (ws) => {
   });
 
   ws.on('close', () => {
-    if (ws.playerId !== null && world) world.removePlayer(ws.playerId);
+    if (ws.playerId !== null) {
+      if (world) world.removePlayer(ws.playerId);
+      campaignData.delete(ws.playerId);
+    }
   });
   ws.on('error', () => {});
 });
 
-// Heartbeat: descarta conexiones muertas (cliente que cerró sin avisar).
+// Heartbeat
 const heartbeat = setInterval(() => {
   for (const ws of wss.clients) {
     if (!ws.alive) { ws.terminate(); continue; }
@@ -105,10 +155,10 @@ const heartbeat = setInterval(() => {
 wss.on('close', () => clearInterval(heartbeat));
 
 // --- Loops -----------------------------------------------------------------
-// Simulación a 60 Hz con acumulador (estable frente al jitter de setInterval).
 const STEP_MS = 1000 / C.SIM_HZ;
 let last = Date.now();
 let acc = 0;
+
 setInterval(() => {
   const now = Date.now();
   acc += now - last;
@@ -119,6 +169,10 @@ setInterval(() => {
     world.step();
     acc -= STEP_MS;
     steps++;
+  }
+  // Chequear victoria de nivel en modo clásico.
+  if (worldConfig.mode === 'classic' && world.isLevelCleared()) {
+    advanceLevel();
   }
 }, STEP_MS);
 
@@ -131,7 +185,7 @@ setInterval(() => {
   }
 }, 1000 / C.NET_HZ);
 
-// --- Arranque + ayuda para conectarse desde la LAN -------------------------
+// --- Arranque --------------------------------------------------------------
 httpServer.listen(PORT, '0.0.0.0', () => {
   const ips = [];
   for (const ifaces of Object.values(os.networkInterfaces())) {

@@ -26,8 +26,9 @@ const INVULN_TICKS = 90;   // invulnerabilidad tras morir (no recibís daño)
 const START_LIVES = 3;
 
 // --- Vida y combate ---
-const MAX_HP = 100;        // barra de vida (variable abstracta)
-const BULLET_DAMAGE = 25;  // daño por bala
+const MAX_HP = 100;        // barra de vida del jugador (variable abstracta)
+const BULLET_DAMAGE_PLAYER = [10, 15, 20]; // daño de bala a jugadores por nivel
+const BULLET_DAMAGE_ENEMY  = 1;            // daño de bala a enemigos (su HP escala, no esto)
 const ENEMY_DAMAGE = 50;  // enemigos = 100% (te matan de un toque, como antes)
 
 // --- Armas / balas ---
@@ -56,9 +57,11 @@ module.exports = {
   PLAYER_W, PLAYER_H, MOVE_ACCEL, FRICTION, MAX_RUN, GRAVITY, MAX_FALL,
   JUMP_VEL, JUMP_CUT, COYOTE_TICKS, BUFFER_TICKS, STOMP_BOUNCE,
   INVULN_TICKS, START_LIVES,
-  MAX_HP, BULLET_DAMAGE, ENEMY_DAMAGE,
+  MAX_HP, BULLET_DAMAGE_PLAYER, BULLET_DAMAGE_ENEMY, ENEMY_DAMAGE,
   BULLET_SPEED, BULLET_LIFE, BULLET_W, BULLET_H, FIRE_COOLDOWN,
   DROP_FRACTION, DROP_COIN_VALUE, DROP_MAX_COINS,
-  ENEMY_W: 28, ENEMY_H: 28, ENEMY_SPEED: 1.4,
+  ENEMY_W: 28, ENEMY_H: 28,
+  ENEMY_SPEED:  [1.4, 1.6, 1.8],  // velocidad de patrulla por nivel
+  ENEMY_MAX_HP: [1,   2,   3],     // balas necesarias para matar por nivel
   COIN_SCORE, STOMP_SCORE, PLAYER_COLORS,
 };

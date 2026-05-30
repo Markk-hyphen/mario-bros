@@ -1,4 +1,4 @@
-// Definición del nivel como filas de texto. Editá esto para crear mapas.
+// Definición de niveles como filas de texto.
 //
 // Leyenda:
 //   '#'  bloque sólido
@@ -7,42 +7,87 @@
 //   'e'  spawn de enemigo
 //   'p'  spawn de jugador (puede haber varios; se reparten en orden)
 //   ' '  vacío
-//
-// Notas:
-//   - Los bordes izquierdo/derecho del mundo son paredes implícitas.
-//   - El techo es abierto (se puede saltar "fuera" por arriba sin morir).
-//   - Caerse por un hueco hasta debajo del mapa = muerte y respawn.
 
-const ROWS = [
-  '                                                                            ',
-  '                                                                            ',
-  '                                                                            ',
-  '                                                o o                         ',
-  '                                       e      =======                       ',
-  '                          o o o     =======                    o o o        ',
-  '       e                 =======                              =======       ',
-  '     ======                              o                                  ',
-  '                          o            =====            e                   ',
-  '                e   ===========                       ======      o o o      ',
-  '              =====              o o o        o                  =======     ',
-  '    o o                        =======      =====                           ',
-  '   =====       e                                          e                 ',
-  'p           #####           o o o o            e                          p ',
-  '#####################   ##############   ###################   ##############',
-  '#####################   ##############   ###################   ##############',
-  '#####################   ##############   ###################   ##############',
+const LEVELS = [
+  {
+    name: 'Jungle',
+    rows: [
+      '                                                                            ',
+      '                                                                            ',
+      '                                                                            ',
+      '                                                o o                         ',
+      '                                       e      =======                       ',
+      '                          o o o     =======                    o o o        ',
+      '       e                 =======                              =======       ',
+      '     ======                              o                                  ',
+      '                          o            =====            e                   ',
+      '                e   ===========                       ======      o o o      ',
+      '              =====              o o o        o                  =======     ',
+      '    o o                        =======      =====                           ',
+      '   =====       e                                          e                 ',
+      'p           #####           o o o o            e                          p ',
+      '#####################   ##############   ###################   ##############',
+      '#####################   ##############   ###################   ##############',
+      '#####################   ##############   ###################   ##############',
+    ],
+  },
+  {
+    // Plataformas estrechas y escalonadas, más enemigos, menos monedas
+    name: 'Base',
+    rows: [
+      '                                                                              ',
+      '                                                                              ',
+      '          o           o                   o           o                      ',
+      '        =====       =====       e       =====       =====                    ',
+      '                                      ========                               ',
+      '  e             o         ========               o         e                 ',
+      '      =======  ====                    ====     ====                         ',
+      '                        o    e    o                                          ',
+      '   ====                ================                ====     o            ',
+      '              e                              e                 ====          ',
+      '            ======    o   o   o   o        ======                            ',
+      '  o                  ================               o   o                   ',
+      ' ====     e                                    e        ====                 ',
+      'p    ##########    o o o o o o o o o      ##########               p         ',
+      '################  ###################  ################  ###################',
+      '################  ###################  ################  ###################',
+      '################  ###################  ################  ###################',
+    ],
+  },
+  {
+    // Diseño vertical-ascendente, plataformas cortas, muchos enemigos, pocas monedas
+    name: 'Escape',
+    rows: [
+      '                                                                              ',
+      '     o               e                       e               o               ',
+      '   ======          ======                  ======          ======            ',
+      '                                  o                                          ',
+      '          e      ============            ============      e                 ',
+      '        ====                    e                        ====                ',
+      '                  o   o                 o   o                                ',
+      '   e    ======  ========   e       e  ========  ======    e                  ',
+      '       =                                               =                     ',
+      '   ====   o       e      ============      e      o    ====                  ',
+      '                        ==            ==                                     ',
+      '          e    ====    =     o  o      =    ====    e                        ',
+      '   ====                =                =               ====                 ',
+      'p       #######    e   =                =   e    #######           p         ',
+      '##############  ######=##################=######  ##############  ###########',
+      '##############  ######=##################=######  ##############  ###########',
+      '##############  ######=##################=######  ##############  ###########',
+    ],
+  },
 ];
 
 function parseLevel(rows) {
   const cols = Math.max(...rows.map((r) => r.length));
   const height = rows.length;
-  // Normalizamos cada fila a la misma longitud rellenando con vacío.
   const grid = rows.map((r) => r.padEnd(cols, ' ').split(''));
 
-  const solid = [];   // grid[r][c] => true si bloquea
-  const coins = [];   // {id, x, y}
-  const enemySpawns = []; // {x, y}
-  const playerSpawns = []; // {x, y}
+  const solid = [];
+  const coins = [];
+  const enemySpawns = [];
+  const playerSpawns = [];
 
   let coinId = 0;
   for (let r = 0; r < height; r++) {
@@ -59,8 +104,6 @@ function parseLevel(rows) {
     }
   }
 
-  // Render hint: filas con su tipo de tile para que el cliente dibuje sin
-  // tener que reinterpretar la lógica de colisión.
   const renderRows = grid.map((row) => row.map((ch) => {
     if (ch === '#') return '#';
     if (ch === '=') return '=';
@@ -70,4 +113,11 @@ function parseLevel(rows) {
   return { cols, rows: height, solid, coins, enemySpawns, playerSpawns, renderRows };
 }
 
-module.exports = { ROWS, parseLevel };
+function getLevelByIndex(levelIndex) {
+  return parseLevel(LEVELS[levelIndex].rows);
+}
+
+// ROWS exportado por compatibilidad con cualquier import legacy
+const ROWS = LEVELS[0].rows;
+
+module.exports = { LEVELS, ROWS, parseLevel, getLevelByIndex };
