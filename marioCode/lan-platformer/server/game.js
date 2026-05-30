@@ -117,6 +117,7 @@ class World {
       lives: C.START_LIVES,
       hp: C.MAX_HP, invuln: 0,
       fireCd: 0,
+      djump: false, stompStreak: 0, streakTimer: 0,
       spawn: { x: spawn.x, y: spawn.y },
       input: { left: false, right: false, jump: false, fire: false },
     };
@@ -245,6 +246,10 @@ class World {
     if (p.buffer > 0 && p.coyote > 0) {
       p.vy = C.JUMP_VEL;
       p.buffer = 0; p.coyote = 0; p.onGround = false;
+    } else if (p.buffer > 0 && p.coyote === 0 && p.djump) {
+      p.vy = C.JUMP_VEL * 0.88;
+      p.djump = false;
+      p.buffer = 0;
     }
     if (p.prevJump && !inp.jump && p.vy < 0) p.vy *= C.JUMP_CUT;
     p.prevJump = inp.jump;
@@ -252,6 +257,13 @@ class World {
     p.vy = Math.min(C.MAX_FALL, p.vy + C.GRAVITY);
     this.moveX(p);
     this.moveY(p);
+    if (p.onGround) p.djump = true;
+
+    // Streak timer: resetea el contador si la ventana expira
+    if (p.streakTimer > 0) {
+      p.streakTimer--;
+      if (p.streakTimer === 0) p.stompStreak = 0;
+    }
 
     if (p.fireCd > 0) p.fireCd--;
     if (inp.fire && p.fireCd === 0) this.fire(p);
@@ -344,9 +356,13 @@ class World {
         if (!aabb(p.x, p.y, p.w, p.h, e.x, e.y, e.w, e.h)) continue;
         const pisada = p.vy > 1 && (p.y + p.h) < (e.y + e.h * 0.6);
         if (pisada) {
-          e.alive = false;  // stomp = one-shot siempre
+          e.alive = false;
           p.vy = C.STOMP_BOUNCE;
-          p.score += C.STOMP_SCORE;
+          p.djump = true;
+          p.stompStreak++;
+          p.streakTimer = C.STOMP_STREAK_WINDOW;
+          const mult = Math.pow(2, Math.min(p.stompStreak - 1, 3));
+          p.score += C.STOMP_SCORE * mult;
         } else {
           this.damage(p, C.ENEMY_DAMAGE, true);
         }
@@ -367,6 +383,8 @@ class World {
         f: p.facing, sc: p.score, lv: p.lives,
         hp: Math.max(0, Math.round(p.hp)),
         iv: p.invuln > 0 ? 1 : 0,
+        dj: p.djump ? 1 : 0,
+        ss: p.stompStreak,
       })),
       enemies: this.enemies.filter((e) => e.alive).map((e) => ({
         id: e.id, x: Math.round(e.x), y: Math.round(e.y), d: e.dir,

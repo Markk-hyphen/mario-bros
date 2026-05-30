@@ -41,6 +41,10 @@ let gameMode = 'classic';
 let levelIndex = 0;
 let levelName = '';
 const buffer = [];
+const effects = [];
+const prevStreaks = {};
+let screenShakeMag = 0;
+let screenFlash = 0;
 let latest = null;
 const input = { left: false, right: false, jump: false, fire: false };
 let lastSent = '';
@@ -88,6 +92,7 @@ function connect(name, mode, holdSecs) {
       levelName  = msg.levelName  ?? levelName;
       while (buffer.length > 2 && t - buffer[0].t > 1000) buffer.shift();
       setConn(true);
+      for (const p of msg.players) checkStompEffect(p);
       if (gameMode === 'coin-rush' && msg.cr) updateCoinRushHud(msg.cr);
     } else if (msg.type === 'restart') {
       location.reload();
@@ -264,7 +269,14 @@ function render(now) {
   const focusY = me ? me.y + 15 : worldH / 2;
   const { camX, camY } = camera(focusX, focusY);
 
-  ctx.setTransform(dpr * zoom, 0, 0, dpr * zoom, -camX * dpr * zoom, -camY * dpr * zoom);
+  let shakeX = 0, shakeY = 0;
+  if (screenShakeMag > 0) {
+    shakeX = (Math.random() - 0.5) * screenShakeMag;
+    shakeY = (Math.random() - 0.5) * screenShakeMag;
+    screenShakeMag *= 0.78;
+    if (screenShakeMag < 0.1) screenShakeMag = 0;
+  }
+  ctx.setTransform(dpr * zoom, 0, 0, dpr * zoom, (-camX + shakeX) * dpr * zoom, (-camY + shakeY) * dpr * zoom);
 
   drawBackground(camX, camY);
   drawTiles(camX, camY);
@@ -283,8 +295,17 @@ function render(now) {
   }
 
   for (const b of Object.values(interp.bullets)) drawBullet(b);
+  drawEffects(now);
 
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  if (screenFlash > 0) {
+    ctx.fillStyle = `rgba(255,80,80,${screenFlash * 0.22})`;
+    ctx.fillRect(0, 0, canvas.width / dpr, canvas.height / dpr);
+    screenFlash *= 0.82;
+    if (screenFlash < 0.02) screenFlash = 0;
+  }
+
   updateHUD();
 }
 
@@ -397,6 +418,10 @@ function drawPlayer(p, isMe, now) {
     ctx.fillRect(bx, by, bw * frac, 3);
   }
 
+  // Indicador de doble salto: punto bajo los pies
+  ctx.fillStyle = p.dj ? '#4dd2ff' : 'rgba(60,90,120,0.35)';
+  ctx.beginPath(); ctx.arc(x + w / 2, y + h + 6, 3, 0, Math.PI * 2); ctx.fill();
+
   // Nombre.
   ctx.font = '700 9px ui-monospace, monospace';
   ctx.textAlign = 'center';
@@ -423,6 +448,65 @@ function updateHUD() {
       <span class="sc">${p.sc}</span>
     </div>`).join('');
   if (connEl) connEl.textContent = `Nivel ${levelIndex + 1}/3 • ${levelName}`;
+}
+
+// ===========================================================================
+// Efectos de stomp chain
+// ===========================================================================
+function checkStompEffect(p) {
+  const prev = prevStreaks[p.id] || 0;
+  const curr = p.ss || 0;
+  if (curr > prev && curr > 1) {
+    const mult = Math.pow(2, Math.min(curr - 1, 3));
+    const cx = p.x + 12, cy = p.y + 15;
+    const now = performance.now();
+    effects.push({ type: 'shockwave', x: cx, y: cy, t: now, dur: 480, mult });
+    effects.push({ type: 'text',      x: cx, y: p.y - 8, t: now, dur: 900, mult,
+      text: `×${mult}${'!'.repeat(Math.min(curr - 1, 3))}` });
+    if (mult >= 8)      { screenShakeMag = Math.max(screenShakeMag, 7); screenFlash = 0.9; }
+    else if (mult >= 4) { screenShakeMag = Math.max(screenShakeMag, 4); }
+    else                { screenShakeMag = Math.max(screenShakeMag, 2); }
+  }
+  prevStreaks[p.id] = curr;
+}
+
+function drawEffects(now) {
+  for (let i = effects.length - 1; i >= 0; i--) {
+    const ef = effects[i];
+    const age = now - ef.t;
+    if (age > ef.dur) { effects.splice(i, 1); continue; }
+    const prog = age / ef.dur;
+
+    if (ef.type === 'shockwave') {
+      const maxR = ef.mult >= 8 ? 85 : ef.mult >= 4 ? 55 : 30;
+      const r     = maxR * prog;
+      const alpha = 1 - prog;
+      const lw    = 3.5 * (1 - prog * 0.6);
+      ctx.strokeStyle = ef.mult >= 8
+        ? `rgba(255,80,80,${alpha})`
+        : ef.mult >= 4
+          ? `rgba(255,210,77,${alpha})`
+          : `rgba(77,210,255,${alpha})`;
+      ctx.lineWidth = lw;
+      ctx.beginPath(); ctx.arc(ef.x, ef.y, Math.max(r, 1), 0, Math.PI * 2); ctx.stroke();
+      ctx.lineWidth = 1;
+    }
+
+    if (ef.type === 'text') {
+      const oy    = -38 * prog;
+      const alpha = prog < 0.65 ? 1 : 1 - (prog - 0.65) / 0.35;
+      const sz    = ef.mult >= 8 ? 15 : ef.mult >= 4 ? 13 : 11;
+      ctx.font = `700 ${sz}px ui-monospace, monospace`;
+      ctx.textAlign = 'center';
+      ctx.fillStyle = ef.mult >= 8
+        ? `rgba(255,100,100,${alpha})`
+        : ef.mult >= 4
+          ? `rgba(255,220,80,${alpha})`
+          : `rgba(100,220,255,${alpha})`;
+      ctx.fillText(ef.text, ef.x, ef.y + oy);
+      ctx.textAlign = 'left';
+    }
+  }
 }
 
 // ===========================================================================
