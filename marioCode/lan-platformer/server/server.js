@@ -120,6 +120,9 @@ wss.on('connection', (ws) => {
     if (msg.type === 'input' && ws.playerId !== null && world) {
       world.setInput(ws.playerId, msg);
     }
+    if (msg.type === 'respawn' && ws.playerId !== null && world) {
+      world.teleportToSpawn(ws.playerId);
+    }
 
     if (msg.type === 'restart' && ws.playerId !== null && world && world.gameOver) {
       // Restart solo aplica en modo coin-rush (el clásico no tiene game over).

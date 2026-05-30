@@ -157,6 +157,10 @@ restartBtn.addEventListener('click', () => {
   if (ws && ws.readyState === ws.OPEN) ws.send(JSON.stringify({ type: 'restart' }));
 });
 
+document.getElementById('debugRespawn').addEventListener('click', () => {
+  if (ws && ws.readyState === ws.OPEN) ws.send(JSON.stringify({ type: 'respawn' }));
+});
+
 // ===========================================================================
 // Input
 // ===========================================================================

@@ -126,6 +126,13 @@ class World {
 
   removePlayer(id) { this.players.delete(id); }
 
+  teleportToSpawn(id) {
+    const p = this.players.get(id);
+    if (!p) return;
+    p.x = p.spawn.x; p.y = p.spawn.y;
+    p.vx = 0; p.vy = 0;
+  }
+
   setInput(id, input) {
     const p = this.players.get(id);
     if (!p) return;
