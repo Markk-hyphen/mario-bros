@@ -106,8 +106,9 @@ button#joinBtn:disabled { filter: grayscale(0.7) brightness(0.7); cursor: wait; 
 .conn.bad { color: var(--warn); border-color: var(--warn); }
 
 /* ---------- Controles táctiles ---------- */
-.touch { position: absolute; inset: auto 0 0 0; z-index: 30; display: flex; justify-content: space-between; padding: 18px 22px 28px; pointer-events: none; }
+.touch { position: absolute; inset: auto 0 0 0; z-index: 30; display: flex; justify-content: space-between; align-items: flex-end; padding: 18px 22px 28px; pointer-events: none; }
 .touch .pad { display: flex; gap: 14px; }
+.touch .actions { display: flex; gap: 14px; align-items: flex-end; }
 .tb {
   pointer-events: auto; width: 76px; height: 76px; border-radius: 16px;
   font-size: 26px; color: var(--ink); background: rgba(19,26,44,0.85);
@@ -116,3 +117,5 @@ button#joinBtn:disabled { filter: grayscale(0.7) brightness(0.7); cursor: wait; 
 }
 .tb:active { background: rgba(93,255,143,0.25); border-color: var(--accent); }
 .tb.jump { width: 96px; height: 96px; }
+.tb.fire { color: var(--warn); }
+.tb.fire:active { background: rgba(255,210,77,0.25); border-color: var(--warn); }
