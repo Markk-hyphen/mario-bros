@@ -8,6 +8,8 @@
 // ===========================================================================
 
 const INTERP_MS = 100;
+const HORDE_WORDS = ['ENERGUMENOS', 'CASTORES', 'BERMEJOS BENDITOS'];
+let hordeBannerTimer = null;
 
 // ---- DOM ----
 const lobby = document.getElementById('lobby');
@@ -94,6 +96,8 @@ function connect(name, mode, holdSecs) {
       setConn(true);
       for (const p of msg.players) checkStompEffect(p);
       if (gameMode === 'coin-rush' && msg.cr) updateCoinRushHud(msg.cr);
+    } else if (msg.type === 'chaos' && msg.event === 'HORDE_INCOMING') {
+      showHordeBanner();
     } else if (msg.type === 'restart') {
       location.reload();
     }
@@ -156,6 +160,18 @@ function updateCoinRushHud(cr) {
   } else {
     crHoldEl.classList.add('hidden');
   }
+}
+
+function showHordeBanner() {
+  const word = HORDE_WORDS[Math.floor(Math.random() * HORDE_WORDS.length)];
+  const el  = document.getElementById('hordeBanner');
+  const txt = document.getElementById('hordeText');
+  txt.textContent = `HORDE INCOMING — ${word}`;
+  el.classList.add('hidden');
+  void el.offsetWidth; // fuerza reflow para reiniciar la animación CSS
+  el.classList.remove('hidden');
+  clearTimeout(hordeBannerTimer);
+  hordeBannerTimer = setTimeout(() => el.classList.add('hidden'), 3200);
 }
 
 restartBtn.addEventListener('click', () => {

@@ -48,6 +48,10 @@ const DROP_MAX_COINS = 8;    // tope de monedas que caen (evita spamear el piso)
 const COIN_SCORE = 100;
 const STOMP_SCORE = 200;
 
+// --- Horde Multiplier (Coin Rush) ---
+const HORDE_MULTIPLIER_CHANCE = 0.08; // 8% al crear el mundo en coin-rush
+const HORDE_MULTIPLIER        = 3;    // enemigos × 3
+
 const PLAYER_COLORS = [
   '#ff5d5d', '#4dd2ff', '#5dff8f', '#ffd24d',
   '#c06dff', '#ff8f3d', '#3dffe0', '#ff6db0',
@@ -65,4 +69,5 @@ module.exports = {
   ENEMY_SPEED:  [1.4, 1.6, 1.8],  // velocidad de patrulla por nivel
   ENEMY_MAX_HP: [1,   2,   3],     // balas necesarias para matar por nivel
   COIN_SCORE, STOMP_SCORE, PLAYER_COLORS,
+  HORDE_MULTIPLIER_CHANCE, HORDE_MULTIPLIER,
 };
