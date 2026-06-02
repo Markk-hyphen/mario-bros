@@ -50,6 +50,7 @@ let screenFlash = 0;
 let latest = null;
 const input = { left: false, right: false, jump: false, fire: false };
 let lastSent = '';
+let tileCanvas = null;
 
 // ---- Selector de modo (lobby) ----
 let selectedMode = 'classic';
@@ -80,6 +81,7 @@ function connect(name, mode, holdSecs) {
       gameMode = msg.mode || 'classic';
       levelIndex = msg.levelIndex || 0;
       levelName  = msg.levelName  || '';
+      buildTileCache();
       // Al recibir welcome en mid-game (transición de nivel) refrescamos el mapa.
       if (cfg && game && !game.classList.contains('hidden')) {
         resize();
@@ -295,7 +297,7 @@ function render(now) {
   ctx.setTransform(dpr * zoom, 0, 0, dpr * zoom, (-camX + shakeX) * dpr * zoom, (-camY + shakeY) * dpr * zoom);
 
   drawBackground(camX, camY);
-  drawTiles(camX, camY);
+  drawTiles();
   drawCoins(now);
   for (const e of Object.values(interp.enemies)) drawEnemy(e, now);
 
@@ -336,28 +338,32 @@ function drawBackground(camX, camY) {
   }
 }
 
-function drawTiles(camX, camY) {
+function buildTileCache() {
   const T = cfg.tile;
-  const c0 = Math.max(0, Math.floor(camX / T) - 1);
-  const c1 = Math.min(cfg.cols - 1, Math.floor((camX + cssW / zoom) / T) + 1);
-  const r0 = Math.max(0, Math.floor(camY / T) - 1);
-  const r1 = Math.min(cfg.rows - 1, Math.floor((camY + cssH / zoom) / T) + 1);
-  for (let r = r0; r <= r1; r++) {
+  tileCanvas = document.createElement('canvas');
+  tileCanvas.width  = cfg.cols * T;
+  tileCanvas.height = cfg.rows * T;
+  const tc = tileCanvas.getContext('2d');
+  for (let r = 0; r < cfg.rows; r++) {
     const row = cfg.tiles[r];
-    for (let c = c0; c <= c1; c++) {
+    for (let c = 0; c < cfg.cols; c++) {
       const ch = row[c];
       if (ch !== '#' && ch !== '=') continue;
       const x = c * T, y = r * T;
       if (ch === '#') {
-        ctx.fillStyle = '#26314f'; ctx.fillRect(x, y, T, T);
-        ctx.fillStyle = '#34416a'; ctx.fillRect(x, y, T, 4);
-        ctx.fillStyle = '#1b2440'; ctx.fillRect(x, y + T - 4, T, 4);
+        tc.fillStyle = '#26314f'; tc.fillRect(x, y, T, T);
+        tc.fillStyle = '#34416a'; tc.fillRect(x, y, T, 4);
+        tc.fillStyle = '#1b2440'; tc.fillRect(x, y + T - 4, T, 4);
       } else {
-        ctx.fillStyle = '#3a5d44'; ctx.fillRect(x, y, T, T * 0.5);
-        ctx.fillStyle = '#52facb'; ctx.fillRect(x, y, T, 3);
+        tc.fillStyle = '#3a5d44'; tc.fillRect(x, y, T, T * 0.5);
+        tc.fillStyle = '#52facb'; tc.fillRect(x, y, T, 3);
       }
     }
   }
+}
+
+function drawTiles() {
+  if (tileCanvas) ctx.drawImage(tileCanvas, 0, 0);
 }
 
 function drawCoins(now) {
