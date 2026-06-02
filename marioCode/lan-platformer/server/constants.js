@@ -55,7 +55,7 @@ const STUPIDITY_CURSE_COOLDOWN  = 1800;  // ticks entre activaciones globales (~
 const STUPIDITY_CURSE_DURATION  = 360;   // ticks que dura la maldición (~6s a 60Hz)
 
 // --- Horde Multiplier (Coin Rush) ---
-const HORDE_MULTIPLIER_CHANCE = 0.08; // 8% al crear el mundo en coin-rush
+const HORDE_MULTIPLIER_CHANCE = 0.10; // 10% al crear el mundo en coin-rush
 const HORDE_MULTIPLIER        = 3;    // enemigos × 3
 
 const PLAYER_COLORS = [
