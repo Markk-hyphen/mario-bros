@@ -466,16 +466,18 @@ function drawPlayer(p, isMe, now) {
 // ===========================================================================
 // HUD
 // ===========================================================================
+let lastScoreboardHtml = '';
 function updateHUD() {
   if (!latest) return;
   const sorted = [...latest.players].sort((a, b) => b.sc - a.sc);
-  scoreboard.innerHTML = sorted.map((p) => `
+  const html = sorted.map((p) => `
     <div class="row">
       <span class="chip" style="background:${p.col}"></span>
       <span class="${p.id === myId ? 'me' : ''}">${escapeHtml(p.n)}</span>
       <span class="lv">♥${p.lv}</span>
       <span class="sc">${p.sc}</span>
     </div>`).join('');
+  if (html !== lastScoreboardHtml) { scoreboard.innerHTML = html; lastScoreboardHtml = html; }
   const me = latest.players.find((p) => p.id === myId);
   if (connEl) {
     if (me && me.cx) {
